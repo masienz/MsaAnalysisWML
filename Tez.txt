@@ -1,0 +1,23 @@
+Teze Akademik Katkı ve Savunma Argümanları
+Bu projeyi teze yazarken kullanmanız gereken "Akademik Jargon" ve "Savunma Stratejisi" şunlardır:
+
+A. Literatürdeki Yeri (State of the Art)
+Geleneksel Yöntem: Klasik Kalite Kontrol (SPC - Statistical Process Control), sadece üst ve alt limitlere bakar (Örn: Ölçü > 102 ise RED).
+
+Sizin Öneriniz: Çok değişkenli (Multivariate) analiz. Sadece tek bir ölçüye değil, Sıcaklık, Basınç ve Ölçüm arasındaki karmaşık ilişkiye bakıyoruz.
+
+Anahtar Kelime: Soft Sensor (Yazılımsal Sensör). Fiziksel olarak ölçülemeyen kaliteyi, eldeki verilerden tahmin ediyoruz.
+
+B. Neden Bu Algoritmaları Seçtik?
+Tezde jüri size "Neden Isolation Forest kullandın?" diye sorarsa cevabınız şu olmalı:
+
+Isolation Forest (Anomali için): "Üretim verileri genellikle dengesizdir (çoğu ürün sağlam, çok azı hatalıdır). Klasik yöntemler bu dengesiz veride zorlanır. Isolation Forest, 'normal olmayanı' izole etme prensibiyle çalıştığı için üretim hatalarını yakalamada literatürde en başarılı yöntemlerden biridir."
+
+Random Forest (Tahmin için): "Kauçuk vulkanizasyonu lineer (doğrusal) olmayan bir süreçtir. Sıcaklık ve basıncın etkisi karmaşıktır. Random Forest, bu lineer olmayan ilişkileri modelleyebildiği ve 'overfit' (aşırı öğrenme) riskine karşı dirençli olduğu için seçilmiştir."
+
+C. Endüstriyel Katkı (Industrial Implication)
+Bu çalışma şunu vaat ediyor:
+
+Proaktif Müdahale: Hatalı ürün daha oluşmadan veya oluştuğu anda (parti bitmeden) parametrelerdeki sapmayı fark edip makineyi durdurabilme yeteneği.
+
+ScrappiX'in Değerini Artırma: Cihazı sadece bir "kumpas" olmaktan çıkarıp, fabrikanın "akıllı karar destek sistemi" haline getiriyoruz.
