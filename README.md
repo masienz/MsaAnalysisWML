@@ -1,57 +1,54 @@
-🏭 ScrappiX: Veri Odaklı Kestirimci Kalite ve Kalıp Ömür Analiz Sistemi
-ScrappiX, polimer (enjeksiyon) ve elastomer (kompresyon) kalıplama süreçlerinde, makinelere pahalı sensörler takmak yerine doğrudan ürünün boyutsal ölçüm verilerini (Metroloji) kullanarak kalıbın Kalan Faydalı Ömrünü (RUL) tahmin eden bir Kestirimci Kalite (Predictive Quality) yazılımıdır.
+# 🏭 ScrappiX: Veri Odaklı Kestirimci Kalite ve Kalıp Ömür Analiz Sistemi
 
-📌 Projenin Amacı ve Çözdüğü Problem
-Seri üretimde kalite kontroller genellikle periyodik (örneğin 4 saatte bir) yapılır. Bu iki kontrol arasında kalan süreye "Kör Nokta" (Blind Spot) denir. Eğer kalıp bu süre içinde aşınır ve tolerans dışına çıkarsa, fark edilene kadar binlerce hatalı (hurda) parça üretilir.
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.20%2B-red)
+![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-Machine%20Learning-orange)
+![IATF](https://img.shields.io/badge/Standard-IATF%2016949-success)
 
-ScrappiX, IATF 16949 İstatistiksel Proses Kontrol (SPC) yöntemleri ile Makine Öğrenmesi (Regresyon) algoritmalarını birleştirerek; hatayı oluşmadan önce tahmin eder ve olası Kalitesizlik Maliyetini (COPQ) canlı olarak hesaplayarak önler.
+**ScrappiX**, polimer (enjeksiyon) ve elastomer (kompresyon) kalıplama süreçlerinde, makinelere pahalı sensörler takmak yerine **doğrudan ürünün boyutsal ölçüm verilerini (Metroloji)** kullanarak kalıbın Kalan Faydalı Ömrünü (RUL) tahmin eden bir Kestirimci Kalite (Predictive Quality) yazılımıdır.
 
-🚀 Temel Özellikler ve Çalışma Mantığı
-🔍 Sensörsüz RUL Tahmini: Titreşim veya sıcaklık sensörlerine ihtiyaç duymaz. Doğrudan ürünün iç çap, dış çap ve yükseklik ölçümlerindeki milimetrik trendleri (Linear Regression) analiz ederek kalıbın kaç baskı sonra bozulacağını (RUL) bulur.
+## 📌 Projenin Amacı ve Çözdüğü Problem
 
-🔗 En Zayıf Halka Teorisi (Weakest Link): Sistemin ömrünü, incelenen ölçüler (iç çap, dış çap, vb.) arasından en hızlı bozulan ölçü belirler. Yazılım, global alarmı bu "en zayıf halkaya" göre verir.
+Seri üretimde kalite kontroller genellikle periyodik (örneğin 4 saatte bir) yapılır. Bu iki kontrol arasında kalan süreye **"Kör Nokta" (Blind Spot)** denir. Eğer kalıp bu süre içinde aşınır ve tolerans dışına çıkarsa, fark edilene kadar binlerce hatalı (hurda) parça üretilir.
 
-💰 Finansal Tasarruf Modeli: Sistem, kalıbın kalan ömrü ile kalite kontrol periyodu arasındaki ilişkiyi hesaplar. Eğer hata, kaliteci gelmeden önce oluşacaksa, o aradaki üretimi "Riskli" kabul eder ve kurtarılan potansiyel hurda maliyetini TL/USD/EUR cinsinden ekrana yansıtır.
+ScrappiX, IATF 16949 İstatistiksel Proses Kontrol (SPC) yöntemleri ile Makine Öğrenmesi (Regresyon) algoritmalarını birleştirerek; hatayı oluşmadan önce tahmin eder ve olası **Kalitesizlik Maliyetini (COPQ)** canlı olarak hesaplayarak önler.
 
-📊 Detaylı MSA ve IATF 16949 Standartları: Anlık olarak Cp, Cpk, Pp, Ppk, Çarpıklık (Skewness) ve Basıklık (Kurtosis) değerlerini hesaplar.
+## 🚀 Temel Özellikler ve Çalışma Mantığı
 
-🛠️ Kullanılan Teknolojiler
-Veri Analitiği ve İşleme: Pandas, NumPy, SciPy
+* **🔍 Sensörsüz RUL Tahmini:** Titreşim veya sıcaklık sensörlerine ihtiyaç duymaz. Doğrudan ürünün iç çap, dış çap ve yükseklik ölçümlerindeki milimetrik trendleri analiz ederek kalıbın kaç baskı sonra bozulacağını (RUL) bulur.
+* **🔗 En Zayıf Halka Teorisi (Weakest Link):** Sistemin ömrünü, incelenen ölçüler (iç çap, dış çap, vb.) arasından en hızlı bozulan ölçü belirler. Yazılım, global alarmı bu "en zayıf halkaya" göre verir.
+* **💰 Finansal Tasarruf Modeli:** Sistem, kalıbın kalan ömrü ile kalite kontrol periyodu arasındaki ilişkiyi hesaplar. Eğer hata, kaliteci gelmeden önce oluşacaksa, o aradaki üretimi "Riskli" kabul eder ve kurtarılan potansiyel hurda maliyetini TL/USD/EUR cinsinden ekrana yansıtır.
+* **📊 Detaylı MSA ve IATF 16949 Standartları:** Anlık olarak `Cp`, `Cpk`, `Pp`, `Ppk`, `Çarpıklık` ve `Basıklık` değerlerini hesaplar.
 
-Makine Öğrenmesi: Scikit-learn (Linear Regression, Isolation Forest)
+## 🛠️ Kullanılan Teknolojiler
 
-Veri Görselleştirme: Plotly (İnteraktif Trend ve Histogram grafikleri)
+* **Veri Analitiği:** `Pandas`, `NumPy`, `SciPy`
+* **Makine Öğrenmesi:** `Scikit-learn` (Linear Regression, Isolation Forest)
+* **Veri Görselleştirme:** `Plotly` (İnteraktif Grafik Motoru)
+* **Web Arayüzü:** `Streamlit`
 
-Web Arayüzü: Streamlit
+## 📂 Proje Yapısı
 
-📂 Proje Yapısı
-app.py: Sistemin son kullanıcıya hitap eden, etkileşimli Streamlit web arayüzü ve entegre karar destek mekanizması.
+* `app.py`: Sistemin son kullanıcıya hitap eden, etkileşimli Streamlit web arayüzü ve entegre karar destek mekanizması.
+* `main.py`: Algoritmaların test edildiği, anomalilerin tespit edildiği terminal tabanlı çekirdek analiz motoru.
+* `requirements.txt`: Gerekli Python kütüphanelerinin listesi.
 
-main.py: Algoritmaların test edildiği, anomalilerin (Isolation Forest) tespit edildiği terminal tabanlı çekirdek analiz motoru.
+## ⚙️ Kurulum ve Kullanım
 
-requirements.txt: Gerekli Python kütüphanelerinin listesi.
+Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları sırasıyla terminalinize (komut satırına) yapıştırın:
 
-⚙️ Kurulum ve Kullanım
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin:
+**1. Depoyu klonlayın ve klasöre girin:**
+`git clone https://github.com/kullaniciadiniz/scrappix.git`
+`cd scrappix`
 
-Depoyu klonlayın:
+**2. Gerekli kütüphaneleri yükleyin:**
+`pip install -r requirements.txt`
 
-Bash
+**3. Streamlit uygulamasını başlatın:**
+`streamlit run app.py`
 
-git clone https://github.com/kullaniciadiniz/scrappix.git
-cd scrappix
-Gerekli kütüphaneleri yükleyin:
+**4. Veri Yükleme ve Test:**
+Arayüz açıldığında, sol taraftaki menüden tolerans ve maliyet ayarlarınızı yapın. Ardından ilk 4 sütunu `[Parça No, İç Çap, Dış Çap, Yükseklik]` olan herhangi bir `.csv` veya `.xlsx` dosyasını sisteme yükleyin veya **"Simülasyon Verisi Oluştur"** butonuna basarak sistemi anında test edin.
 
-Bash
-
-pip install -r requirements.txt
-Streamlit uygulamasını başlatın:
-
-Bash
-
-streamlit run app.py
-Veri Yükleme:
-Arayüz açıldığında, sol taraftaki menüden tolerans ve maliyet ayarlarınızı yapın. Ardından ilk 4 sütunu [Parça No, İç Çap, Dış Çap, Yükseklik] olan herhangi bir .csv veya .xlsx dosyasını sisteme yükleyin veya "Simülasyon Verisi Oluştur" butonuna basarak sistemi test edin.
-
-🎓 Akademik Altyapı
-Bu yazılım, bir yüksek lisans tezinin parçası olarak geliştirilmiştir. Makine verisi yerine "Ürün Metroloji" verisi kullanarak kalıp ömrü tahmin etme yaklaşımı, literatürdeki güncel çalışmalarla (örn: Böttjer et al., 2022) desteklenmektedir.
+## 🎓 Akademik Altyapı
+Bu yazılım, bir yüksek lisans tezinin parçası olarak geliştirilmiştir. Makine verisi yerine "Ürün Metroloji" verisi kullanarak kalıp ömrü tahmin etme yaklaşımı, literatürdeki güncel akademik çalışmalarla desteklenmektedir.
