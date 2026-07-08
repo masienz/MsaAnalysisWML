@@ -1,0 +1,40 @@
+{
+    "R 002": {
+        "secilen_olculer": [
+            "D\u0131\u015f \u00c7ap"
+        ],
+        "cevrim_suresi": 360,
+        "kontrol_sikligi": 4.0,
+        "baski_basina": 704,
+        "maliyet": 15.0,
+        "gurultu_filtresi": 5,
+        "ic_nom": 20.0,
+        "ic_ust": 0.1,
+        "ic_alt": 0.1,
+        "dis_nom": 71.7,
+        "dis_ust": 0.5,
+        "dis_alt": 0.5,
+        "yuk_nom": 10.0,
+        "yuk_ust": 0.1,
+        "yuk_alt": 0.05
+    },
+    "R 002/5,8": {
+        "secilen_olculer": [
+            "D\u0131\u015f \u00c7ap"
+        ],
+        "cevrim_suresi": 360,
+        "kontrol_sikligi": 4.0,
+        "baski_basina": 704,
+        "maliyet": 15.0,
+        "gurultu_filtresi": 5,
+        "ic_nom": 20.0,
+        "ic_ust": 0.1,
+        "ic_alt": 0.1,
+        "dis_nom": 71.7,
+        "dis_ust": 0.5,
+        "dis_alt": 0.5,
+        "yuk_nom": 10.0,
+        "yuk_ust": 0.1,
+        "yuk_alt": 0.05
+    }
+}

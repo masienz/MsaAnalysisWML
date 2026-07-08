@@ -5,9 +5,36 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
 from scipy.stats import skew, kurtosis
+import json
+import os
 
-# --- SAYFA AYARLARI ---
-st.set_page_config(page_title="Endüstriyel Kestirimci Kalite", layout="wide")
+# --- SAYFA VE ŞABLON AYARLARI ---
+st.set_page_config(page_title="Ölçüm Makinesi Kestirimci Kalite", layout="wide")
+
+TEMPLATE_FILE = "sablonlar.json"
+
+def load_templates():
+    if os.path.exists(TEMPLATE_FILE):
+        with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def save_template(name, data):
+    templates = load_templates()
+    templates[name] = data
+    with open(TEMPLATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(templates, f, indent=4)
+
+# Session State Başlangıç Değerleri (secilen_olculer EKLENDİ)
+if 'ayarlar' not in st.session_state:
+    st.session_state.ayarlar = {
+        'secilen_olculer': ["İç Çap", "Dış Çap", "Yükseklik"],
+        'cevrim_suresi': 30, 'kontrol_sikligi': 4.0, 'baski_basina': 4,
+        'maliyet': 15.0, 'gurultu_filtresi': 5,
+        'ic_nom': 20.0, 'ic_ust': 0.10, 'ic_alt': 0.10,
+        'dis_nom': 45.0, 'dis_ust': 0.20, 'dis_alt': 0.20,
+        'yuk_nom': 10.0, 'yuk_ust': 0.10, 'yuk_alt': 0.05
+    }
 
 st.markdown("""
     <style>
@@ -18,44 +45,81 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🏭 Endüstriyel Kestirimci Kalite ve Kalıp Ömür Analiz Sistemi")
+st.title("🏭 Ölçüm Makinesi - Kestirimci Kalite ve Kalıp Ömür Analizi")
 
 # --- YAN MENÜ ---
+st.sidebar.title("💾 Şablon Yönetimi")
+mevcut_sablonlar = load_templates()
+secilen_sablon = st.sidebar.selectbox("Kayıtlı Şablonlar", ["Yeni/Varsayılan"] + list(mevcut_sablonlar.keys()))
+
+if st.sidebar.button("📂 Şablonu Yükle"):
+    if secilen_sablon != "Yeni/Varsayılan":
+        st.session_state.ayarlar.update(mevcut_sablonlar[secilen_sablon])
+        st.rerun()
+
+st.sidebar.divider()
 st.sidebar.title("⚙️ Üretim Parametreleri")
 
+a = st.session_state.ayarlar
+
 st.sidebar.subheader("⏱️ Çevrim ve Kontrol")
-cevrim_suresi = st.sidebar.number_input("Çevrim Süresi (Saniye)", value=30, step=1)
-kontrol_sikligi = st.sidebar.number_input("Kalite Kontrol Sıklığı (Saat)", value=4.0, step=0.5)
-baski_basina_urun = st.sidebar.number_input("Göz Sayısı (Adet)", value=4, step=1)
+cevrim_suresi = st.sidebar.number_input("Çevrim Süresi (Saniye)", value=a['cevrim_suresi'], step=1)
+kontrol_sikligi = st.sidebar.number_input("Kalite Kontrol Sıklığı (Saat)", value=a['kontrol_sikligi'], step=0.5)
+baski_basina_urun = st.sidebar.number_input("Çevrim Başına Üretim", value=a['baski_basina'], step=1)
+gurultu_filtresi = st.sidebar.slider("Gürültü Filtresi (Puan)", min_value=1, max_value=30, value=a.get('gurultu_filtresi', 5), help="Değer arttıkça anlık ölçüm hataları yok sayılır, kalıbın gerçek aşınma ömrü uzar.")
 
 st.sidebar.subheader("💰 Maliyet")
 para_birimi = st.sidebar.selectbox("Para Birimi", ["TL", "USD ($)", "EUR (€)"])
 simge = para_birimi.split("(")[-1].replace(")", "") 
-urun_maliyeti = st.sidebar.number_input(f"Birim Ürün Maliyeti ({simge})", value=15.0, step=0.5)
+urun_maliyeti = st.sidebar.number_input(f"Birim Ürün Maliyeti ({simge})", value=a['maliyet'], step=0.5)
+
+st.sidebar.subheader("📋 Veri Seçimi")
+# DÜZELTME: Seçilen ölçüler artık kaydedilen şablondan geliyor
+secilen_olculer = st.sidebar.multiselect(
+    "Excel'deki Ölçüleriniz:", 
+    ["İç Çap", "Dış Çap", "Yükseklik"], 
+    default=a.get('secilen_olculer', ["İç Çap", "Dış Çap", "Yükseklik"])
+)
 
 st.sidebar.subheader("📐 Toleranslar")
-def tolerance_input(label, default_nom, default_plus, default_minus):
+def tolerance_input(label, key_prefix):
     with st.sidebar.expander(f"{label} Ayarları", expanded=False):
-        nom = st.number_input(f"{label} Nominal", value=default_nom, step=0.01)
-        tol_plus = st.number_input(f"{label} Tolerans (+)", value=default_plus, step=0.01)
-        tol_minus = st.number_input(f"{label} Tolerans (-)", value=default_minus, step=0.01)
-        return {"Nom": nom, "USL": nom + tol_plus, "LSL": nom - tol_minus}
+        nom = st.number_input(f"{label} Nominal", value=a[f'{key_prefix}_nom'], step=0.01)
+        tol_plus = st.number_input(f"{label} Tolerans (+)", value=a[f'{key_prefix}_ust'], step=0.01)
+        tol_minus = st.number_input(f"{label} Tolerans (-)", value=a[f'{key_prefix}_alt'], step=0.01)
+        return {"Nom": nom, "USL": nom + tol_plus, "LSL": nom - tol_minus, "raw": (nom, tol_plus, tol_minus)}
 
-limits = {
-    "İç Çap":  tolerance_input("1. İç Çap", 20.00, 0.10, 0.10),
-    "Dış Çap": tolerance_input("2. Dış Çap", 45.00, 0.20, 0.20),
-    "Yükseklik": tolerance_input("3. Yükseklik", 10.00, 0.10, 0.05)
-}
+limits = {}
+if "İç Çap" in secilen_olculer: limits["İç Çap"] = tolerance_input("İç Çap", "ic")
+if "Dış Çap" in secilen_olculer: limits["Dış Çap"] = tolerance_input("Dış Çap", "dis")
+if "Yükseklik" in secilen_olculer: limits["Yükseklik"] = tolerance_input("Yükseklik", "yuk")
+
+st.sidebar.divider()
+kayit_adi = st.sidebar.text_input("Şablon Adı (Örn: R002 Kalıbı)")
+if st.sidebar.button("💾 Mevcut Ayarları Kaydet"):
+    if kayit_adi:
+        yeni_ayarlar = {
+            'secilen_olculer': secilen_olculer, # DÜZELTME: Listeyi kaydet
+            'cevrim_suresi': cevrim_suresi, 'kontrol_sikligi': kontrol_sikligi, 'baski_basina': baski_basina_urun,
+            'maliyet': urun_maliyeti, 'gurultu_filtresi': gurultu_filtresi,
+            'ic_nom': limits.get("İç Çap", {}).get("raw", (20.0, 0.1, 0.1))[0],
+            'ic_ust': limits.get("İç Çap", {}).get("raw", (20.0, 0.1, 0.1))[1],
+            'ic_alt': limits.get("İç Çap", {}).get("raw", (20.0, 0.1, 0.1))[2],
+            'dis_nom': limits.get("Dış Çap", {}).get("raw", (45.0, 0.2, 0.2))[0],
+            'dis_ust': limits.get("Dış Çap", {}).get("raw", (45.0, 0.2, 0.2))[1],
+            'dis_alt': limits.get("Dış Çap", {}).get("raw", (45.0, 0.2, 0.2))[2],
+            'yuk_nom': limits.get("Yükseklik", {}).get("raw", (10.0, 0.1, 0.05))[0],
+            'yuk_ust': limits.get("Yükseklik", {}).get("raw", (10.0, 0.1, 0.05))[1],
+            'yuk_alt': limits.get("Yükseklik", {}).get("raw", (10.0, 0.1, 0.05))[2]
+        }
+        save_template(kayit_adi, yeni_ayarlar)
+        st.sidebar.success(f"'{kayit_adi}' başarıyla kaydedildi!")
+    else:
+        st.sidebar.error("Lütfen bir şablon adı girin.")
 
 # --- FONKSİYONLAR ---
-
-def generate_demo_data():
-    """Ultra Hassas Simülasyon Verisi"""
-    n = 1000 
-    ic_cap = np.random.normal(limits["İç Çap"]["Nom"], 0.0012, n) + np.linspace(0, 0.008, n)
-    dis_cap = np.random.normal(limits["Dış Çap"]["Nom"], 0.002, n) 
-    yukseklik = np.random.normal(limits["Yükseklik"]["Nom"], 0.001, n) - np.linspace(0, 0.005, n)
-    return pd.DataFrame({'Parca_No': range(1, n + 1), 'Ic_Cap': ic_cap, 'Dis_Cap': dis_cap, 'Yukseklik': yukseklik})
+def clean_turkish_numbers(series):
+    return pd.to_numeric(series.astype(str).str.replace(',', '.'), errors='coerce')
 
 def calculate_msa_stats(data, specs):
     mean = np.mean(data)
@@ -63,180 +127,381 @@ def calculate_msa_stats(data, specs):
     std_pop = np.std(data, ddof=0)
     usl, lsl = specs["USL"], specs["LSL"]
     
-    Cp = (usl - lsl) / (6 * std_sample)
-    Cpk = min((usl - mean) / (3 * std_sample), (mean - lsl) / (3 * std_sample))
-    Pp = (usl - lsl) / (6 * std_pop)
-    Ppk = min((usl - mean) / (3 * std_pop), (mean - lsl) / (3 * std_pop))
+    Cp = (usl - lsl) / (6 * std_sample) if std_sample > 0 else 0
+    Cpk = min((usl - mean) / (3 * std_sample), (mean - lsl) / (3 * std_sample)) if std_sample > 0 else 0
+    Pp = (usl - lsl) / (6 * std_pop) if std_pop > 0 else 0
+    Ppk = min((usl - mean) / (3 * std_pop), (mean - lsl) / (3 * std_pop)) if std_pop > 0 else 0
     
-    return {
-        "Mean": mean, "Std": std_sample, 
-        "Cp": Cp, "Cpk": Cpk, "Pp": Pp, "Ppk": Ppk,
-        "Skew": skew(data), "Kurt": kurtosis(data)
-    }
+    return {"Mean": mean, "Std": std_sample, "Cp": Cp, "Cpk": Cpk, "Pp": Pp, "Ppk": Ppk, "Skew": skew(data), "Kurt": kurtosis(data)}
 
-def analyze_trend_pure(df, col_name, specs, goz_sayisi):
-    X = df[['Parca_No']].values.reshape(-1, 1)
-    y = df[col_name].values
+def find_regime_change(x, y, min_segment_frac=0.1, min_segment_abs=3):
+    """Kalıp ömrü boyunca sabit bir aşınma hızı yoktur: süreç uzun süre durağan kalıp
+    sonra aşınmaya başlayabilir. Veriyi ikiye bölüp toplam hata karesini (SSE) en çok
+    azaltan noktayı bulur; bu nokta mevcut aşınma rejiminin başlangıcıdır."""
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    n = len(x)
+    min_seg = max(min_segment_abs, int(n * min_segment_frac))
+    if n < 2 * min_seg:
+        return None
+
+    zero = np.zeros(1)
+    cx = np.concatenate([zero, np.cumsum(x)])
+    cy = np.concatenate([zero, np.cumsum(y)])
+    cxy = np.concatenate([zero, np.cumsum(x * y)])
+    cx2 = np.concatenate([zero, np.cumsum(x * x)])
+    cy2 = np.concatenate([zero, np.cumsum(y * y)])
+
+    def seg_sse(lo, hi):
+        n_ = hi - lo
+        if n_ < 2:
+            return 0.0
+        sx, sy = cx[hi] - cx[lo], cy[hi] - cy[lo]
+        sxy, sx2, sy2 = cxy[hi] - cxy[lo], cx2[hi] - cx2[lo], cy2[hi] - cy2[lo]
+        sxx = sx2 - sx * sx / n_
+        syy = sy2 - sy * sy / n_
+        sxy_c = sxy - sx * sy / n_
+        if sxx <= 1e-12:
+            return syy
+        return syy - (sxy_c * sxy_c) / sxx
+
+    single_sse = seg_sse(0, n)
+    best_i, best_sse = None, np.inf
+    for i in range(min_seg, n - min_seg):
+        sse = seg_sse(0, i) + seg_sse(i, n)
+        if sse < best_sse:
+            best_sse, best_i = sse, i
+
+    # Bölme, tek doğruya kıyasla en az %3 iyileşme sağlamıyorsa rejim değişikliği yok say
+    if best_i is not None and best_sse < single_sse * 0.97:
+        return best_i
+    return None
+
+def find_all_regime_changes(x, y, min_segment_frac=0.15, min_segment_abs=5, max_segments=4):
+    """Seriyi BIC (Bayesian Information Criterion) cezalı, en fazla `max_segments` evreye
+    bölen açgözlü (greedy) bir segmentasyon yapar. Amaç: kalıbın kendi geçmişinde daha önce
+    benzer bir düşüş yaşayıp yaşamadığını ve toparlandıysa ne hızda toparlandığını tespit
+    etmek. Basit "yerel %3 iyileşme" eşiği (find_regime_change), tekrar tekrar uygulanınca
+    (özyinelemeli) küçülen alt segmentlerde gürültüden bile "iyileşme" bulabiliyordu (saf
+    tek-yönlü trend + gürültüde %33 sahte bölünme oranı ölçüldü) — BIC, her ek segmentin
+    getirdiği parametre (eğim+kesim) maliyetini global olarak cezalandırdığı için bu riski
+    ortadan kaldırır. Minimum segment boyutu ORİJİNAL seri uzunluğuna göre sabittir (alt
+    segmentlere göre KÜÇÜLMEZ), bu da aşırı parçalanmayı engeller."""
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    n = len(x)
+    min_seg = max(min_segment_abs, int(n * min_segment_frac))
+    if n < 2 * min_seg:
+        return [(0, n)]
+
+    zero = np.zeros(1)
+    cx = np.concatenate([zero, np.cumsum(x)])
+    cy = np.concatenate([zero, np.cumsum(y)])
+    cxy = np.concatenate([zero, np.cumsum(x * y)])
+    cx2 = np.concatenate([zero, np.cumsum(x * x)])
+    cy2 = np.concatenate([zero, np.cumsum(y * y)])
+
+    def seg_sse(lo, hi):
+        n_ = hi - lo
+        if n_ < 2:
+            return 0.0
+        sx, sy = cx[hi] - cx[lo], cy[hi] - cy[lo]
+        sxy, sx2, sy2 = cxy[hi] - cxy[lo], cx2[hi] - cx2[lo], cy2[hi] - cy2[lo]
+        sxx = sx2 - sx * sx / n_
+        syy = sy2 - sy * sy / n_
+        sxy_c = sxy - sx * sy / n_
+        if sxx <= 1e-12:
+            return max(syy, 1e-12)
+        return max(syy - (sxy_c * sxy_c) / sxx, 1e-12)
+
+    def total_bic(boundaries):
+        total_sse = sum(seg_sse(boundaries[i], boundaries[i + 1]) for i in range(len(boundaries) - 1))
+        k = len(boundaries) - 1
+        return n * np.log(total_sse / n) + (2 * k) * np.log(n)
+
+    boundaries = [0, n]
+    best_bic = total_bic(boundaries)
+    while len(boundaries) - 1 < max_segments:
+        best_candidate = None
+        for i in range(len(boundaries) - 1):
+            lo, hi = boundaries[i], boundaries[i + 1]
+            if hi - lo < 2 * min_seg:
+                continue
+            local_split = find_regime_change(x[lo:hi], y[lo:hi], min_segment_frac, min_segment_abs)
+            if local_split is None:
+                continue
+            split = lo + local_split
+            candidate_bounds = sorted(boundaries + [split])
+            b = total_bic(candidate_bounds)
+            if b < best_bic - 1e-9 and (best_candidate is None or b < best_candidate[0]):
+                best_candidate = (b, split)
+        if best_candidate is None:
+            break
+        best_bic, split = best_candidate
+        boundaries = sorted(boundaries + [split])
+    return [(boundaries[i], boundaries[i + 1]) for i in range(len(boundaries) - 1)]
+
+# Fiziksel olarak KALICI aşınmanın hangi yönde olduğu bilinen ölçüler: Dış Çap dişi
+# (female) bir kavite tarafından şekillenir — kavite aşınırsa BÜYÜR (USL yönü). Bu
+# yönde bir yaklaşma gerçek/kalıcı aşınma sayılır ve toparlanma VARSAYILMAZ; ters yönde
+# (LSL'ye yaklaşma) tipik olarak kalıp yüzeyindeki birikinti/kir (fouling) sorumludur ve
+# temizlikle giderilebilir, bu yüzden orada toparlanma emsali dikkate alınabilir.
+KALICI_ASINMA_YONU = {"Dış Çap": "USL"}
+
+def analyze_trend_pure(df, col_name, specs, baski_basina_urun, window, kalici_asinma_yonu=None):
+    df = df.sort_values('Parca_No')
+
+    # 0. BASKI SEVİYESİNE TOPLULAŞTIRMA: çok gözlü (çok kaviteli) kalıplarda bir tek
+    # baskıda üretilen TÜM parçalar aynı kavite setinden aynı anda çıkar. Parça bazında
+    # regresyon, kavite-arası/kesim-pozisyonu farkını (gerçek R002 verisinde toplam
+    # varyansın %96'sı!) aşınma trendiyle karıştırıp güveniliriliği düşürür (R²≈0.05).
+    # Baskı ortalaması alınca bu baskı-içi gürültü ayıklanır (aynı veride R²≈0.81'e çıktı).
+    if baski_basina_urun and baski_basina_urun > 1 and len(df) >= 2 * baski_basina_urun:
+        baski_idx = (df['Parca_No'] - df['Parca_No'].min()) // baski_basina_urun
+        df = df.groupby(baski_idx, as_index=False).agg({'Parca_No': 'mean', col_name: 'mean'})
+
+    # 1. ÖN REGRESYON: trend yönünü/eğimini kabaca belirle (ham veri üzerinde)
+    X_all = df[['Parca_No']].values.reshape(-1, 1)
+    y_all = df[col_name].values
+    pre_model = LinearRegression().fit(X_all, y_all)
+    residuals = y_all - pre_model.predict(X_all)
+    resid_std = residuals.std()
+
+    # 2. AYKIRI DEĞER (SERSERİ NOKTA) TEMİZLİĞİ: trendden ayrıştırılmış KALINTI üzerinden
+    # (Ham/kaydırılmamış hareketli ortalama üzerinden filtreleme, aşınma trendinin
+    #  ucundaki en kritik noktaları "aykırı" sayıp atma ve RUL'de gecikme yanlılığı
+    #  (lag bias) yaratma riski taşıdığı için kalıntı bazlı yapılır.)
+    # NOT: Eşik 2.0 yerine 3.0 sigma — döngüsel (düşüş-toparlanma) bir seride, tek bir
+    # düz çizgiye göre en çok sapan nokta genellikle GERÇEK bir tepe/dip (toparlanma
+    # kanıtı) olur; 2.0 sigma bu gerçek dönüş noktalarını "aykırı" sayıp siliyordu
+    # (gerçek R002 verisinde toparlanma tepe noktası böyle kayboluyordu).
+    if resid_std > 0:
+        valid_data = df[np.abs(residuals) <= (3.0 * resid_std)]
+    else:
+        valid_data = df
+
+    if len(valid_data) < 5:
+        valid_data = df # Yeterli veri kalmadıysa mecburen hepsini kullan
+
+    valid_data = valid_data.sort_values('Parca_No').copy()
+    # Sadece GÖRSELLEŞTİRME için yumuşatılmış çizgi (nihai tahmine girmez)
+    valid_data['Smoothed'] = valid_data[col_name].rolling(window=window, min_periods=1, center=True).mean()
+
+    # 3. REJİM TESPİTİ: kalıp uzun süre durağan kalıp sonra aşınmaya başlamış olabilir.
+    # Tüm geçmişe TEK doğru uydurmak bu başlangıcı sulandırıp RUL'ü büyütür. Regresyonu
+    # sadece MEVCUT aşınma rejimine (son değişim noktasından sonrasına) dayandırıyoruz.
+    split_idx = find_regime_change(valid_data['Parca_No'].values, valid_data[col_name].values)
+    regime_data = valid_data.iloc[split_idx:] if split_idx is not None else valid_data
+    if len(regime_data) < 5:
+        regime_data = valid_data
+
+    # 4. NİHAİ REGRESYON: mevcut rejimin temizlenmiş HAM verisi üzerinden (gecikme yanlılığı yok)
+    X = regime_data[['Parca_No']].values.reshape(-1, 1)
+    y = regime_data[col_name].values
+
     model = LinearRegression()
     model.fit(X, y)
-    
+
     egim = model.coef_[0]
-    kesim = model.intercept_
     current_parca = df['Parca_No'].max()
-    
-    kalan_parca = 9999999
-    limit_tipi = "Stabil"
-    
-    if abs(egim) > 0.0000005: 
-        target = specs["USL"] if egim > 0 else specs["LSL"]
-        kalan_parca = ((target - kesim) / egim) - current_parca
-        limit_tipi = "Üst Limit" if egim > 0 else "Alt Limit"
-    
-    kalan_baski = int(kalan_parca / goz_sayisi) if kalan_parca > 0 else 0
-    return {"Model": model, "RUL": kalan_baski, "Limit": limit_tipi}
+    son_deger = valid_data['Smoothed'].iloc[-1]
+
+    # 5. GEÇMİŞ TOPARLANMA TESPİTİ: kauçuk/metal kalıp çiftinde metal kavite bu kadar
+    # hızlı aşınmaz — kısa vadeli düşüşler genellikle ısıl/malzeme kaynaklı GEÇİCİ
+    # dalgalanmalardır. find_all_regime_changes ile kalıbın kendi geçmişinde daha önce
+    # böyle bir düşüşten kendiliğinden toparlanma olup olmadığına bakılır.
+    segments = find_all_regime_changes(valid_data['Parca_No'].values, valid_data[col_name].values)
+    seg_slopes = []
+    for lo, hi in segments:
+        if hi - lo < 2:
+            continue
+        xs = valid_data['Parca_No'].values[lo:hi].reshape(-1, 1)
+        ys = valid_data[col_name].values[lo:hi]
+        seg_slopes.append(LinearRegression().fit(xs, ys).coef_[0])
+
+    # mevcut (son) evrenin ZIT yönünde hareket eden GEÇMİŞ evreler = geçmiş toparlanmalar
+    recovery_slopes = [s for s in seg_slopes[:-1] if np.sign(s) == -np.sign(egim) and s != 0] if len(seg_slopes) > 1 else []
+    # GÜVENLİK EŞİĞİ: tek bir geçmiş evre gürültüden de çıkabilir (gerçekçi R002-ölçekli
+    # gürültüyle yapılan simülasyonda tek-evre şartıyla %5, en az 2 bağımsız evre
+    # şartıyla %1 yanlış-toparlanma oranı ölçüldü) — bu yüzden en az 2 bağımsız geçmiş
+    # toparlanma evresi görülmeden "toparlanma eğilimi" güvenilir kabul edilmez.
+    avg_recovery_egim = float(np.mean(recovery_slopes)) if len(recovery_slopes) >= 2 else None
+
+    # FİZİKSEL YÖN KONTROLÜ: mevcut eğilim, bu ölçü için bilinen KALICI aşınma yönüyle
+    # aynıysa (örn. Dış Çap'ta USL'ye/büyümeye doğru gidiş), toparlanma varsayılmaz —
+    # bu, geri dönüşü olmayan gerçek metal aşınmasıdır, birikinti değildir.
+    kalici_asinma_engeli = False
+    if kalici_asinma_yonu is not None:
+        mevcut_yon = "USL" if egim > 0 else "LSL"
+        if mevcut_yon == kalici_asinma_yonu:
+            avg_recovery_egim = None
+            kalici_asinma_engeli = True
+
+    # 6. NİHAİ EĞİM SEÇİMİ: geçmişte gerçek bir toparlanma emsali varsa, kalıbın kalan
+    # ömrü bu daha gerçekçi (toparlanma) eğilimine göre hesaplanır; emsal yoksa mevcut
+    # aşınma eğilimi kullanılır (başka veri/emsal olmadan tek elde olan budur).
+    if avg_recovery_egim is not None:
+        final_egim = avg_recovery_egim
+        yontem = f"Toparlanma Eğilimi (geçmişte {len(recovery_slopes)} kez gözlendi)"
+    else:
+        final_egim = egim
+        yontem = "Mevcut Aşınma Eğilimi (kalıcı/geri dönüşsüz aşınma yönü)" if kalici_asinma_engeli else "Mevcut Aşınma Eğilimi"
+
+    # 7. GÜNCEL SEVİYEYE ÇAPALAMA (anchoring): doğru kendi ortalama konumundan değil,
+    # kalıbın AN İTİBARİYLE gerçekte ölçülen yerinden başlamalı — aksi halde "Temizlenmiş
+    # Trend" çizgisinin bittiği nokta ile "Gelecek Tahmini"nin başladığı nokta arasında
+    # gerçek olmayan bir sıçrama oluşur.
+    kesim = son_deger - final_egim * current_parca
+    model.intercept_ = kesim
+    model.coef_[0] = final_egim
+
+    if son_deger >= specs["USL"] or son_deger <= specs["LSL"]:
+        return {"Model": model, "RUL": 0, "Limit": "Limit Aşıldı", "ValidData": valid_data, "Yontem": yontem}
+    if abs(final_egim) < 0.0000005:
+        return {"Model": model, "RUL": 99999999, "Limit": "Stabil", "ValidData": valid_data, "Yontem": yontem}
+
+    kalan_usl = ((specs["USL"] - kesim) / final_egim) - current_parca
+    kalan_lsl = ((specs["LSL"] - kesim) / final_egim) - current_parca
+
+    gelecek_kesisimler = []
+    if kalan_usl > 0: gelecek_kesisimler.append(("Üst Limit", kalan_usl))
+    if kalan_lsl > 0: gelecek_kesisimler.append(("Alt Limit", kalan_lsl))
+
+    if len(gelecek_kesisimler) > 0:
+        hedef_limit, kalan_parca = min(gelecek_kesisimler, key=lambda x: x[1])
+        kalan_baski = int(kalan_parca / baski_basina_urun)
+        return {"Model": model, "RUL": kalan_baski, "Limit": hedef_limit, "ValidData": valid_data, "Yontem": yontem}
+    else:
+        return {"Model": model, "RUL": 99999999, "Limit": "Stabil", "ValidData": valid_data, "Yontem": yontem}
 
 # --- EKRAN AKIŞI ---
-
 with st.container():
     c1, c2 = st.columns([1, 2])
     with c1:
-        uploaded_file = st.file_uploader("📂 Veri Dosyası Yükle (.xlsx / .csv)", type=["xlsx", "csv"])
+        if len(secilen_olculer) == 0: st.warning("⚠️ Lütfen yan menüden ölçüm seçin!")
+        uploaded_file = st.file_uploader("📂 Veri Yükle (.xlsx / .csv)", type=["xlsx", "csv"])
         
-        # --- DÜZELTME BURADA YAPILDI ---
-        if uploaded_file is not None:
+        if uploaded_file is not None and len(secilen_olculer) > 0:
             try:
-                if uploaded_file.name.endswith('.csv'):
-                    df_upload = pd.read_csv(uploaded_file, header=None)
-                else:
-                    df_upload = pd.read_excel(uploaded_file, header=None)
+                if uploaded_file.name.endswith('.csv'): df_upload = pd.read_csv(uploaded_file, header=None, sep=None, engine='python')
+                else: df_upload = pd.read_excel(uploaded_file, header=None)
                 
-                # Excel'den gelen veriyi standart formata çevir (İlk 4 sütun)
-                if len(df_upload.columns) >= 4:
-                    # Başlık satırı varsa ve metin ise (str) temizle, yoksa direkt al
-                    # Basitlik için verinin sayısal olduğunu varsayıyoruz ve ilk 4 sütunu alıyoruz
-                    df_clean = df_upload.iloc[:, :4]
-                    # Eğer ilk satır metin ise (Header), onu atla
-                    if isinstance(df_clean.iloc[0,0], str):
-                         df_clean = df_clean.iloc[1:]
+                if len(df_upload.columns) >= len(secilen_olculer) + 1:
+                    df_clean = df_upload.copy()
+                    temp_df = pd.DataFrame()
+                    av_cols, av_labels = [], []
                     
-                    df_clean.columns = ['Parca_No', 'Ic_Cap', 'Dis_Cap', 'Yukseklik']
-                    # Sayısala çevir (Hata varsa NaN yap ve temizle)
-                    for col in df_clean.columns:
-                        df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
-                    df_clean = df_clean.dropna()
+                    temp_df['Parca_No'] = clean_turkish_numbers(df_clean.iloc[:, 0])
+                    for i, olcu in enumerate(secilen_olculer):
+                        col_idx = i + 1
+                        col_name = olcu.replace(" ", "_").replace("ç", "c").replace("Ç", "C").replace("ş", "s").replace("ı", "i").replace("ü", "u")
+                        temp_df[col_name] = clean_turkish_numbers(df_clean.iloc[:, col_idx])
+                        av_cols.append(col_name)
+                        av_labels.append(olcu)
                     
-                    st.session_state['data'] = df_clean
-                    st.success(f"✅ Dosya Yüklendi: {len(df_clean)} satır veri alındı.")
-                else:
-                    st.error("Hata: Dosyada en az 4 sütun olmalı (Parça No | İç Çap | Dış Çap | Yükseklik)")
-            except Exception as e:
-                st.error(f"Dosya okuma hatası: {e}")
-
-        if st.button("🧪 Simülasyon Verisi Oluştur"):
-            st.session_state['data'] = generate_demo_data()
-            st.rerun()
+                    temp_df = temp_df.dropna()
+                    if len(temp_df) > 1:
+                        st.session_state['data'] = temp_df
+                        st.session_state['available_cols'] = av_cols
+                        st.session_state['available_labels'] = av_labels
+                        st.success(f"✅ Başarılı: {len(temp_df)} satır yüklendi.")
+                    else: st.error("Hata: Geçerli veri bulunamadı.")
+                else: st.error("Hata: Sütun sayısı eksik.")
+            except Exception as e: st.error(f"Hata: {e}")
             
     with c2:
         saatlik_baski = 3600 / cevrim_suresi
         kacirilan_baski = int(saatlik_baski * kontrol_sikligi)
-        st.info(f"**Sistem Mantığı:** {kontrol_sikligi} saatlik kontrol periyodu içinde {kacirilan_baski} baskı üretilir. RUL bu değerden küçükse risk alarmı verilir.")
+        st.info(f"**Sistem Mantığı:** Çevrim süresine göre {kontrol_sikligi} saatlik kalite kontrol periyodunda {kacirilan_baski} baskı üretilir — bu, iki kontrol arasında kaçırılabilecek maksimum baskı sayısıdır ('Kör Nokta'). Tahmini **Bakım Zamanı** bu değerin altına düşerse 🚨 ACİL, 10 katına kadarsa ⚠️ PLANLI BAKIM alarmı verilir.")
 
-if 'data' in st.session_state:
+if 'data' in st.session_state and 'available_cols' in st.session_state:
     df = st.session_state['data']
+    cols = st.session_state['available_cols']
+    labels = st.session_state['available_labels']
     
-    results = {}
-    ruls = {}
-    
-    cols = ["Ic_Cap", "Dis_Cap", "Yukseklik"]
-    labels = ["İç Çap", "Dış Çap", "Yükseklik"]
-    
+    results, ruls = {}, {}
     for col, label in zip(cols, labels):
         stats = calculate_msa_stats(df[col], limits[label])
-        trend = analyze_trend_pure(df, col, limits[label], baski_basina_urun)
+        trend = analyze_trend_pure(df, col, limits[label], baski_basina_urun, gurultu_filtresi, KALICI_ASINMA_YONU.get(label))
         results[col] = {"stats": stats, "trend": trend}
-        ruls[label] = trend["RUL"] if trend["RUL"] > 0 else 99999999
+        ruls[label] = trend["RUL"]
 
-    # KPI HESAPLAMALARI
     en_kritik_hat = min(ruls, key=ruls.get)
     min_rul = ruls[en_kritik_hat]
+    blind_spot_baski = (3600 / cevrim_suresi) * kontrol_sikligi
     
-    saatlik_baski = 3600 / cevrim_suresi
-    blind_spot_baski = saatlik_baski * kontrol_sikligi
+    gercek_tasarruf, durum_tipi, durum_mesaji = 0, "success", "Süreç Stabil"
     
-    gercek_tasarruf = 0
-    durum_tipi = "success"
-    durum_mesaji = "Süreç Stabil"
-    
-    if min_rul < blind_spot_baski:
-        kurtarilan_adet = int(blind_spot_baski * baski_basina_urun)
-        gercek_tasarruf = kurtarilan_adet * urun_maliyeti
-        durum_mesaji = f"⚠️ RİSK: '{en_kritik_hat}' ölçüsü {min_rul} baskı sonra tolerans dışına çıkacak!"
+    if min_rul <= blind_spot_baski:
+        gercek_tasarruf = int(blind_spot_baski * baski_basina_urun) * urun_maliyeti
         durum_tipi = "error"
+        if min_rul == 0: durum_mesaji = f"🚨 ACİL DURUM: '{en_kritik_hat}' zaten tolerans dışında!"
+        else: durum_mesaji = f"⚠️ RİSK: '{en_kritik_hat}' {min_rul} baskı sonra limit dışına çıkacak — bakım/temizlik gerekebilir!"
     elif min_rul < (blind_spot_baski * 10):
         durum_mesaji = f"⚠️ UYARI: '{en_kritik_hat}' bakım sinyali veriyor."
         durum_tipi = "warning"
-        
-    # KPI KARTLARI
+
     st.divider()
     k1, k2, k3 = st.columns(3)
     omur_yazi = "Sonsuz" if min_rul > 1000000 else f"{min_rul} Baskı"
-    k1.metric("En Kritik Kalan Ömür", omur_yazi, f"Hat: {en_kritik_hat}", delta_color="inverse")
+    if min_rul == 0: omur_yazi = "0 Baskı (Limit Dışı)"
+
+    kritik_trend = results[cols[labels.index(en_kritik_hat)]]["trend"]
+    kritik_yontem = kritik_trend.get("Yontem", "Mevcut Aşınma Eğilimi")
+
+    k1.metric("Bakım Zamanı (Tahmini)", omur_yazi, f"Hat: {en_kritik_hat}", delta_color="inverse" if min_rul > 0 else "off",
+              help=f"Yöntem: {kritik_yontem}. Bu, kalıbın toplam ömrü değil — bir sonraki temizlik/bakımın gerekeceği tahmini noktadır. Kalıp geçmişte benzer bir düşüşten toparlandıysa (ve bu yön kalıcı aşınma olarak işaretli değilse) bu daha gerçekçi toparlanma eğilimine göre hesaplanır; emsal yoksa mevcut aşınma eğilimi kullanılır.")
     k2.metric("Potansiyel Tasarruf", f"{gercek_tasarruf:,.0f} {simge}", "Hurda Önleme")
     
     genel_ikon = "✅ Stabil"
     if durum_tipi == "error": genel_ikon = "🚨 ACİL BAKIM"
     elif durum_tipi == "warning": genel_ikon = "⚠️ PLANLI BAKIM"
     k3.metric("Operasyonel Durum", genel_ikon)
-    
     if durum_tipi != "success":
         if durum_tipi == "error": st.error(durum_mesaji)
         else: st.warning(durum_mesaji)
 
-    # SEKMELER (DETAYLI ANALİZ)
-    tab1, tab2, tab3 = st.tabs(["🔴 İç Çap", "🔵 Dış Çap", "🟠 Yükseklik"])
+    st.caption(f"ℹ️ Hesaplama yöntemi ('{en_kritik_hat}'): **{kritik_yontem}**")
+
+    st.markdown("### 📊 Detaylı Analiz")
+    tabs = st.tabs([f"📍 {lbl}" for lbl in labels])
     
-    def render_tab(tab, col_key, label_key):
-        res = results[col_key]
-        trend = res["trend"]
-        specs = limits[label_key]
-        stats = res["stats"]
+    for i, tab in enumerate(tabs):
+        col_key, label_key = cols[i], labels[i]
+        res, trend, specs, stats = results[col_key], results[col_key]["trend"], limits[label_key], results[col_key]["stats"]
+        valid_df = trend["ValidData"]
         
         with tab:
-            # 1. BÖLÜM: TREND GRAFİĞİ
-            st.subheader("📉 Trend ve Regresyon Analizi")
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df['Parca_No'], y=df[col_key], name='Ölçüm', mode='markers', opacity=0.6, marker=dict(size=4)))
+            # Ham Veri
+            fig.add_trace(go.Scatter(x=df['Parca_No'], y=df[col_key], name='Ham Ölçüm', mode='markers', opacity=0.3, marker=dict(color='gray', size=4)))
+            # Filtrelenmiş Veri
+            fig.add_trace(go.Scatter(x=valid_df['Parca_No'], y=valid_df['Smoothed'], name='Temizlenmiş Trend', mode='lines', line=dict(color='cyan', width=2)))
             
-            # Trend Çizgisi
-            son = df['Parca_No'].max()
-            ek_uzunluk = max(len(df) * 0.2, 100)
+            son, ek_uzunluk = df['Parca_No'].max(), max(len(df) * 0.2, 100)
             gelecek = np.arange(son, son + ek_uzunluk).reshape(-1, 1)
             pred = trend["Model"].predict(gelecek)
             
-            fig.add_trace(go.Scatter(x=gelecek.flatten(), y=pred, name='Eğilim Yönü', line=dict(color='orange', width=3)))
-            
+            fig.add_trace(go.Scatter(x=gelecek.flatten(), y=pred, name='Gelecek Tahmini', line=dict(color='orange', width=3, dash='dash')))
+
             fig.add_hline(y=specs["USL"], line_color="red", annotation_text="USL")
             fig.add_hline(y=specs["LSL"], line_color="red", annotation_text="LSL")
-            fig.add_hline(y=specs["Nom"], line_color="green", line_dash="dot", opacity=0.5)
-            
             fig.update_layout(height=400, margin=dict(t=30, b=0, l=0, r=0), template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
 
             st.divider()
-
-            # 2. BÖLÜM: MSA VE HİSTOGRAM
-            st.subheader("📊 MSA İstatistikleri ve Dağılım")
+            st.subheader("📊 MSA İstatistikleri ve Dağılım (IATF 16949)")
             col_msa_stats, col_msa_graph = st.columns([1, 2])
-            
+
             with col_msa_stats:
                 m1, m2 = st.columns(2)
                 m1.metric("Ortalama", f"{stats['Mean']:.4f}")
                 m2.metric("Std. Sapma", f"{stats['Std']:.5f}")
-                
+
                 m3, m4 = st.columns(2)
                 m3.metric("Cp", f"{stats['Cp']:.2f}")
-                m4.metric("Cpk", f"{stats['Cpk']:.2f}", delta_color="normal" if stats['Cpk']>1.33 else "inverse")
-                
+                m4.metric("Cpk", f"{stats['Cpk']:.2f}", delta_color="normal" if stats['Cpk'] > 1.33 else "inverse")
+
                 m5, m6 = st.columns(2)
                 m5.metric("Pp", f"{stats['Pp']:.2f}")
                 m6.metric("Ppk", f"{stats['Ppk']:.2f}")
@@ -249,13 +514,9 @@ if 'data' in st.session_state:
                 fig_hist = px.histogram(df, x=col_key, nbins=40, title=f"{label_key} Frekans Dağılımı")
                 fig_hist.add_vline(x=specs["USL"], line_color="red", annotation_text="USL")
                 fig_hist.add_vline(x=specs["LSL"], line_color="red", annotation_text="LSL")
+                fig_hist.add_vline(x=specs["Nom"], line_color="green", line_dash="dot", opacity=0.5, annotation_text="Nom")
                 fig_hist.update_layout(height=350, margin=dict(t=30, b=0, l=0, r=0), showlegend=False, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_hist, use_container_width=True)
-            
-            # 3. BÖLÜM: HAM VERİ
-            with st.expander(f"📋 {label_key} Veri Listesi", expanded=True):
+
+            with st.expander(f"📋 {label_key} Veri Listesi"):
                 st.dataframe(df[['Parca_No', col_key]].sort_values(by='Parca_No', ascending=False), use_container_width=True)
-    
-    render_tab(tab1, "Ic_Cap", "İç Çap")
-    render_tab(tab2, "Dis_Cap", "Dış Çap")
-    render_tab(tab3, "Yukseklik", "Yükseklik")
